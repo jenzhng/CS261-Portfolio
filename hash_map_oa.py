@@ -10,259 +10,200 @@ from a6_include import (DynamicArray, DynamicArrayException, HashEntry,
 
 
 class HashMap:
-
-  def __init__(self, capacity: int, function) -> None:
-    """
+    def __init__(self, capacity: int, function) -> None:
+        """
         Initialize new HashMap that uses
         quadratic probing for collision resolution
-        DO NOT CHANGE THIS METHOD IN ANY WAY
         """
-    self._buckets = DynamicArray()
+        self._buckets = DynamicArray()
+        self._capacity = self._next_prime(capacity)
+        for _ in range(self._capacity):
+            self._buckets.append(None)
+        self._hash_function = function
+        self._size = 0
 
-    # capacity must be a prime number
-    self._capacity = self._next_prime(capacity)
-    for _ in range(self._capacity):
-      self._buckets.append(None)
-
-    self._hash_function = function
-    self._size = 0
-
-  def __str__(self) -> str:
-    """
+    def __str__(self) -> str:
+        """
         Override string method to provide more readable output
-        DO NOT CHANGE THIS METHOD IN ANY WAY
         """
-    out = ''
-    for i in range(self._buckets.length()):
-      out += str(i) + ': ' + str(self._buckets[i]) + '\n'
-    return out
+        out = ''
+        for i in range(self._buckets.length()):
+            out += str(i) + ': ' + str(self._buckets[i]) + '\n'
+        return out
 
-  def _next_prime(self, capacity: int) -> int:
-    """
+    def _next_prime(self, capacity: int) -> int:
+        """
         Increment from given number to find the closest prime number
-        DO NOT CHANGE THIS METHOD IN ANY WAY
         """
-    if capacity % 2 == 0:
-      capacity += 1
+        if capacity % 2 == 0:
+            capacity += 1
+        while not self._is_prime(capacity):
+            capacity += 2
+        return capacity
 
-    while not self._is_prime(capacity):
-      capacity += 2
-
-    return capacity
-
-  @staticmethod
-  def _is_prime(capacity: int) -> bool:
-    """
+    @staticmethod
+    def _is_prime(capacity: int) -> bool:
+        """
         Determine if given integer is a prime number and return boolean
-        DO NOT CHANGE THIS METHOD IN ANY WAY
         """
-    if capacity == 2 or capacity == 3:
-      return True
+        if capacity == 2 or capacity == 3:
+            return True
+        if capacity == 1 or capacity % 2 == 0:
+            return False
+        factor = 3
+        while factor ** 2 <= capacity:
+            if capacity % factor == 0:
+                return False
+            factor += 2
+        return True
 
-    if capacity == 1 or capacity % 2 == 0:
-      return False
-
-    factor = 3
-    while factor**2 <= capacity:
-      if capacity % factor == 0:
-        return False
-      factor += 2
-
-    return True
-
-  def get_size(self) -> int:
-    """
+    def get_size(self) -> int:
+        """
         Return size of map
-        DO NOT CHANGE THIS METHOD IN ANY WAY
         """
-    return self._size
+        return self._size
 
-  def get_capacity(self) -> int:
-    """
+    def get_capacity(self) -> int:
+        """
         Return capacity of map
-        DO NOT CHANGE THIS METHOD IN ANY WAY
         """
-    return self._capacity
+        return self._capacity
 
-  # ------------------------------------------------------------------ #
+    def put(self, key: str, value: object) -> None:
+        """
+        Updates the key/value pair in the hash map. If the key exists, replace its value.
+        """
+        if self.table_load() >= 0.5:
+            self.resize_table(2 * self._capacity)
 
-  def put(self, key: str, value: object) -> None:
-    """
-    Method updates the key/value pair in the hash map. If the given key already exists in
-the hash map, its associated value must be replaced with the new value. If the given key is
-not in the hash map, a new key/value pair must be added.
-    Hash table is resized to double current capacity when table load is >= 0.5 
-    Params: key: str, value: object
-    Returns: None
-    """
-    # check if table load is greater than or equal to 0.5, if so resize table
-    if self.table_load() >= 0.5:
-      self.resize_table(2 * self._capacity)
+        hash_index = self._hash_function(key) % self._capacity
+        i = 0
+        while True:
+            quad_index = (hash_index + i ** 2) % self._capacity
+            bucket_entry = self._buckets.get_at_index(quad_index)
 
-    hash_index = self._hash_function(key) % self._capacity
+            if bucket_entry is None or bucket_entry.is_tombstone:
+                self._buckets.set_at_index(quad_index, HashEntry(key, value))
+                self._size += 1
+                return
+            elif bucket_entry.key == key:
+                if bucket_entry.is_tombstone:
+                    self._size += 1
+                self._buckets.set_at_index(quad_index, HashEntry(key, value))
+                return
 
-    # if bucket is empty then insert the key value pair and increase size by 1
-    if self._buckets.get_at_index(hash_index) == None:
-      self._buckets.set_at_index(hash_index, HashEntry(key, value))
-      self._size += 1
+            i += 1
 
-    else:
-      i = 1
-      quad_index = hash_index
-      while self._buckets.get_at_index(quad_index):
-        # if hash contains key, then replace with new value, do not increase size and return
-        # if index was a tombstone then increase size
-        if self._buckets.get_at_index(quad_index).key == key:
-          if self._buckets.get_at_index(quad_index).is_tombstone == True:
-            self._buckets.set_at_index(quad_index, HashEntry(key, value))
-            self._size += 1
-            self._buckets.get_at_index(quad_index).is_tombstone = False
-          else:
-            self._buckets.set_at_index(quad_index, HashEntry(key, value))
-          return
-        quad_index = (hash_index + i**2) % self._capacity
-        i += 1
+    def table_load(self) -> float:
+        """
+        Return the current hash table load factor
+        """
+        return self.get_size() / self.get_capacity()
 
-      self._buckets.set_at_index(quad_index, HashEntry(key, value))
-      self._size += 1
+    def empty_buckets(self) -> int:
+        """
+        Return the number of empty buckets in the hash table
+        """
+        return sum(1 for i in range(self._capacity) if self._buckets.get_at_index(i) is None)
 
-  def table_load(self) -> float:
-    """
-    Method that returns the current hash table load factor.
-    Params: None
-    Returns: float
-    """
-    load = self.get_size() / self.get_capacity()
-    return load
+    def resize_table(self, new_capacity: int) -> None:
+        """
+        Change the capacity of the internal hash table and rehash all entries
+        """
+        if new_capacity <= self._size:
+            return
 
-  def empty_buckets(self) -> int:
-    """
-    Method returns the number of empty buckets in the hash table
-    Params: None
-    Returns: int
-    """
-    count = self._capacity - self._size
-    return count
+        new_capacity = self._next_prime(new_capacity)
+        new_table = HashMap(new_capacity, self._hash_function)
 
-  def resize_table(self, new_capacity: int) -> None:
-    """
-    Method that changes the capacity of the internal hash table. All existing key/value pairs
-must remain in the new hash map, and all hash table links must be rehashed. 
-    Check if new_capacity is not less than or equal the current number of elements; if so, the method does nothing.
-    If new_capacity is greater than number of current elements, make sure it is a prime number. If not, rounds to nearest prime number.
-    Params: new_capacity: int
-    Returns: None
-    """
-    # check if new_capacity is greater than number of current elements, if not, return nothing
-    if new_capacity <= self._size:
-      return
+        for i in range(self._capacity):
+            entry = self._buckets.get_at_index(i)
+            if entry and not entry.is_tombstone:
+                new_table.put(entry.key, entry.value)
 
-    # if new_capacity is not a prime number, find next prime
-    if self._is_prime(new_capacity) != True:
-      new_capacity = self._next_prime(new_capacity)
+        self._buckets = new_table._buckets
+        self._capacity = new_table.get_capacity()
+        self._size = new_table.get_size()
 
-    # initialize new table with same hash function
-    table = HashMap(new_capacity, self._hash_function)
+    def get(self, key: str) -> object:
+        """
+        Return the value associated with the given key
+        """
+        hash_index = self._hash_function(key) % self._capacity
+        i = 0
+        while True:
+            quad_index = (hash_index + i ** 2) % self._capacity
+            bucket_entry = self._buckets.get_at_index(quad_index)
 
-    if new_capacity == 2:
-      table._capacity = 2
+            if bucket_entry is None:
+                return None
+            if bucket_entry.key == key and not bucket_entry.is_tombstone:
+                return bucket_entry.value
 
-    for i in self:
-      if i != None:
-        table.put(i.key, i.value)
+            i += 1
 
-    # assign new values to self
-    self._buckets = table._buckets
-    self._capacity = table.get_capacity()
-    self._size = table._size
+    def contains_key(self, key: str) -> bool:
+        """
+        Return True if the given key is in the hash map
+        """
+        return self.get(key) is not None
 
-  def get(self, key: str) -> object:
-    """
-    Method that returns the value associated with the given key. If the key is not in the hash map, the method returns None.
-    Params: key: str
-    Returns: object
-    """
-    for i in self:
-      if i != None:
-        if i.key == key and not i.is_tombstone:
-          return i.value
+    def remove(self, key: str) -> None:
+        """
+        Remove the given key and its associated value from the hash map
+        """
+        hash_index = self._hash_function(key) % self._capacity
+        i = 0
+        while True:
+            quad_index = (hash_index + i ** 2) % self._capacity
+            bucket_entry = self._buckets.get_at_index(quad_index)
 
-    return None
+            if bucket_entry is None:
+                return
+            if bucket_entry.key == key and not bucket_entry.is_tombstone:
+                bucket_entry.is_tombstone = True
+                self._size -= 1
+                return
 
-  def contains_key(self, key: str) -> bool:
-    """
-    Method returns True if the given key is in the hash map, otherwise it returns False. An empty hash map does not contain any keys.
-    Params: key:str
-    Returns: bool
-    """
-    for i in self:
-      if i != None:
-        if i.key == key and not i.is_tombstone:
-          return True
-    return False
+            i += 1
 
-  def remove(self, key: str) -> None:
-    """
-    Method that removes the given key and its associated value from the hash map. If the key is not in the hash map, the method does nothing (no exception needs to be raised)
-    Params: key: str
-    Returns: None
-    """
-    for i in self:
-      if i != None:
-        if i.key == key and not i.is_tombstone:
-          i.is_tombstone = True
-          self._size -= 1
+    def clear(self) -> None:
+        """
+        Clear the contents of the hash map
+        """
+        self._buckets = DynamicArray()
+        for _ in range(self._capacity):
+            self._buckets.append(None)
+        self._size = 0
 
-  def clear(self) -> None:
-    """
-    Method that clears the contents of the hash map without changing the underlying hash table capacity.
-    Params: None
-    Returns: None
-    """
-    self._buckets = DynamicArray()
-    for i in range(self._capacity):
-      self._buckets.append(None)
-    self._size = 0
+    def get_keys_and_values(self) -> DynamicArray:
+        """
+        Return a dynamic array of key/value pairs in the hash map
+        """
+        da = DynamicArray()
+        for i in range(self._capacity):
+            entry = self._buckets.get_at_index(i)
+            if entry and not entry.is_tombstone:
+                da.append((entry.key, entry.value))
+        return da
 
-  def get_keys_and_values(self) -> DynamicArray:
-    """
-    Method that returns a dynamic array where each index contains a tuple of a key/value pair stored in the hash map. The order of the keys in the dynamic array does not matter.
-    Params: None
-    Returns: DynamicArray
-    """
-    new_da = DynamicArray()
+    def __iter__(self):
+        """
+        Enable the hash map to be iterable
+        """
+        self._iter_index = 0
+        return self
 
-    for i in self:
-      if i and not i.is_tombstone:
-        new_da.append((i.key, i.value))
-
-    return new_da
-
-  def __iter__(self):
-    """
-    Method that enables the hash map to iterate across itself.
-    Params: None
-    Returns None
-    """
-    self.index = 0
-    return self
-
-  def __next__(self):
-    """
-    Method that will return the next item in the hash map, based on the current location of the iterator. 
-    Params: None
-    Returns None
-    """
-    try:
-      val = None
-      while val == None or val.is_tombstone == True:
-        val = self._buckets.get_at_index(self.index)
-        self.index += 1
-    except DynamicArrayException:
-      raise StopIteration
-
-    return val
-
+    def __next__(self):
+        """
+        Return the next item in the hash map
+        """
+        while self._iter_index < self._capacity:
+            entry = self._buckets.get_at_index(self._iter_index)
+            self._iter_index += 1
+            if entry and not entry.is_tombstone:
+                return entry
+        raise StopIteration
 
 # ------------------- BASIC TESTING ---------------------------------------- #
 
